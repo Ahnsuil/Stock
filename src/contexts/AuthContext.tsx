@@ -39,31 +39,82 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Helper function to validate stored session data
+  const isValidProfile = (profile: any): profile is UserProfile => {
+    return profile && 
+           typeof profile.id === 'string' &&
+           typeof profile.name === 'string' &&
+           typeof profile.email === 'string' &&
+           ['admin', 'guest', 'super_admin'].includes(profile.role)
+  }
+
+  const isValidUser = (user: any): user is User => {
+    return user &&
+           typeof user.id === 'string' &&
+           typeof user.email === 'string'
+  }
+
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchUserProfile(session.user.id)
-      } else {
-        setLoading(false)
+    // Try to restore session from localStorage first
+    const restoreSession = () => {
+      try {
+        const savedProfile = localStorage.getItem('stock-auth-profile')
+        const savedUser = localStorage.getItem('stock-auth-user')
+        
+        if (savedProfile && savedUser) {
+          const parsedProfile = JSON.parse(savedProfile)
+          const parsedUser = JSON.parse(savedUser)
+          
+          // Validate the stored data
+          if (isValidProfile(parsedProfile) && isValidUser(parsedUser)) {
+            setProfile(parsedProfile)
+            setUser(parsedUser)
+            setLoading(false)
+            return true
+          } else {
+            console.warn('Invalid stored session data, clearing...')
+            localStorage.removeItem('stock-auth-profile')
+            localStorage.removeItem('stock-auth-user')
+          }
+        }
+      } catch (error) {
+        console.error('Error restoring session:', error)
+        // Clear invalid data
+        localStorage.removeItem('stock-auth-profile')
+        localStorage.removeItem('stock-auth-user')
       }
-    })
+      return false
+    }
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchUserProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setLoading(false)
-      }
-    })
+    // First try to restore from localStorage
+    const restored = restoreSession()
+    
+    if (!restored) {
+      // Fallback to Supabase session (though this likely won't work with custom auth)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchUserProfile(session.user.id)
+        } else {
+          setLoading(false)
+        }
+      })
 
-    return () => subscription.unsubscribe()
+      // Listen for auth changes
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null)
+        if (session?.user) {
+          fetchUserProfile(session.user.id)
+        } else {
+          setProfile(null)
+          setLoading(false)
+        }
+      })
+
+      return () => subscription.unsubscribe()
+    }
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
@@ -77,11 +128,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (error) {
         console.error('Error fetching user profile:', error)
         toast.error('Failed to load user profile')
+        // Clear invalid session data
+        localStorage.removeItem('stock-auth-profile')
+        localStorage.removeItem('stock-auth-user')
+        setUser(null)
+        setProfile(null)
       } else {
         setProfile(data)
+        // Update localStorage with fresh data
+        try {
+          localStorage.setItem('stock-auth-profile', JSON.stringify(data))
+        } catch (storageError) {
+          console.error('Error updating localStorage:', storageError)
+        }
       }
     } catch (error) {
       console.error('Error fetching user profile:', error)
+      // Clear invalid session data
+      localStorage.removeItem('stock-auth-profile')
+      localStorage.removeItem('stock-auth-user')
+      setUser(null)
+      setProfile(null)
     } finally {
       setLoading(false)
     }
@@ -192,18 +259,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         : (isKnownAdmin || dbRoleLower === 'admin') ? 'admin'
         : 'guest'
 
-      setProfile({
+      const profileData = {
         id: userData.id,
         name: name || userData.id,
         email: userData.email ?? '',
         role: resolvedRole
-      })
+      }
 
-      setUser({
+      const userData_ = {
         id: userData.id,
         email: userData.email ?? '',
         user_metadata: { name: name || userData.id, role: resolvedRole }
-      } as User)
+      } as User
+
+      // Persist to localStorage
+      try {
+        localStorage.setItem('stock-auth-profile', JSON.stringify(profileData))
+        localStorage.setItem('stock-auth-user', JSON.stringify(userData_))
+      } catch (error) {
+        console.error('Error saving session to localStorage:', error)
+      }
+
+      setProfile(profileData)
+      setUser(userData_)
 
       toast.success(`Welcome back, ${name || 'User'}!`)
       return true
@@ -216,6 +294,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const signOut = async () => {
     try {
+      // Clear localStorage
+      localStorage.removeItem('stock-auth-profile')
+      localStorage.removeItem('stock-auth-user')
+      
       setUser(null)
       setProfile(null)
       toast.success('Signed out successfully')
