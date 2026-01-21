@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { ClipboardList, Check, X, Eye, Calendar, User } from 'lucide-react'
+import { ClipboardList, Check, X, Eye, Calendar, User, Edit, Trash2, Minus, Plus } from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -91,25 +91,46 @@ const RequestManagement: React.FC = () => {
     return request.status === selectedStatus
   })
 
+  const handleUpdateRequestItems = async (requestId: string, updatedItems: RequestItem[]) => {
+    try {
+      const { error } = await supabase
+        .from('requests')
+        .update({ items: updatedItems })
+        .eq('id', requestId)
+
+      if (error) throw error
+      
+      toast.success('Request items updated successfully')
+      fetchRequests()
+    } catch (error) {
+      console.error('Error updating request items:', error)
+      toast.error('Failed to update request items')
+    }
+  }
+
   const handleUpdateRequestStatus = async (
     requestId: string, 
     status: 'approved' | 'rejected', 
-    adminNotes?: string
+    adminNotes?: string,
+    items?: RequestItem[]
   ) => {
     try {
+      // Get the current request to use updated items if provided
+      const { data: request, error: requestError } = await supabase
+        .from('requests')
+        .select('items')
+        .eq('id', requestId)
+        .single()
+
+      if (requestError) throw requestError
+
+      // Use provided items or current request items
+      const itemsToProcess = items || request.items
+
       // If approving, check stock availability and deduct quantities
       if (status === 'approved') {
-        // First get the request details
-        const { data: request, error: requestError } = await supabase
-          .from('requests')
-          .select('items')
-          .eq('id', requestId)
-          .single()
-
-        if (requestError) throw requestError
-
         // Check stock availability for each item
-        for (const item of request.items) {
+        for (const item of itemsToProcess) {
           const { data: stockData, error: stockError } = await supabase
             .from('stock_items')
             .select('quantity')
@@ -125,7 +146,7 @@ const RequestManagement: React.FC = () => {
         }
 
         // Deduct stock quantities for approved items
-        for (const item of request.items) {
+        for (const item of itemsToProcess) {
           // First get the current quantity
           const { data: currentItem, error: fetchError } = await supabase
             .from('stock_items')
@@ -156,13 +177,19 @@ const RequestManagement: React.FC = () => {
         }
       }
 
-      // Update request status
+      // Update request status and items if provided
+      const updateData: { status: string; admin_notes: string | null; items?: RequestItem[] } = { 
+        status, 
+        admin_notes: adminNotes || null 
+      }
+      
+      if (items) {
+        updateData.items = items
+      }
+
       const { error } = await supabase
         .from('requests')
-        .update({ 
-          status, 
-          admin_notes: adminNotes || null 
-        })
+        .update(updateData)
         .eq('id', requestId)
 
       if (error) throw error
@@ -404,6 +431,7 @@ const RequestManagement: React.FC = () => {
           request={selectedRequest}
           onClose={() => setSelectedRequest(null)}
           onUpdateStatus={handleUpdateRequestStatus}
+          onUpdateItems={handleUpdateRequestItems}
         />
       )}
 
@@ -426,11 +454,20 @@ const RequestManagement: React.FC = () => {
 interface RequestDetailsModalProps {
   request: Request
   onClose: () => void
-  onUpdateStatus: (id: string, status: 'approved' | 'rejected', notes?: string) => void
+  onUpdateStatus: (id: string, status: 'approved' | 'rejected', notes?: string, items?: RequestItem[]) => void
+  onUpdateItems: (id: string, items: RequestItem[]) => void
 }
 
-const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({ request, onClose, onUpdateStatus }) => {
+const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({ request, onClose, onUpdateStatus, onUpdateItems }) => {
   const [adminNotes, setAdminNotes] = useState(request.admin_notes || '')
+  const [editableItems, setEditableItems] = useState<RequestItem[]>(request.items)
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
+
+  // Update editableItems when request changes
+  useEffect(() => {
+    setEditableItems(request.items)
+    setEditingItemIndex(null)
+  }, [request.id])
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -461,13 +498,116 @@ const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({ request, onCl
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Item</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Quantity</th>
+                      {request.status === 'pending' && (
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Actions</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {request.items.map((item, index) => (
-                      <tr key={index}>
+                    {editableItems.map((item, index) => (
+                      <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{item.item_name}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">{item.quantity}</td>
+                        <td className="px-4 py-2">
+                          {editingItemIndex === index ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (editableItems[index].quantity > 1) {
+                                    const updated = [...editableItems]
+                                    updated[index].quantity -= 1
+                                    setEditableItems(updated)
+                                  }
+                                }}
+                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                                disabled={editableItems[index].quantity <= 1}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={editableItems[index].quantity}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value) || 1
+                                  const updated = [...editableItems]
+                                  updated[index].quantity = value
+                                  setEditableItems(updated)
+                                }}
+                                className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...editableItems]
+                                  updated[index].quantity += 1
+                                  setEditableItems(updated)
+                                }}
+                                className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingItemIndex(null)
+                                  onUpdateItems(request.id, editableItems)
+                                }}
+                                className="text-success-600 dark:text-success-400 hover:text-success-900 dark:hover:text-success-300"
+                                title="Save"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditableItems(request.items)
+                                  setEditingItemIndex(null)
+                                }}
+                                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                                title="Cancel"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-900 dark:text-gray-100">{item.quantity}</span>
+                              {request.status === 'pending' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingItemIndex(index)}
+                                  className="text-primary-600 dark:text-primary-400 hover:text-primary-900 dark:hover:text-primary-300"
+                                  title="Edit Quantity"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        {request.status === 'pending' && (
+                          <td className="px-4 py-2">
+                            {editingItemIndex !== index && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (editableItems.length <= 1) {
+                                    toast.error('Cannot delete the last item. Reject the request instead.')
+                                    return
+                                  }
+                                  const updated = editableItems.filter((_, i) => i !== index)
+                                  setEditableItems(updated)
+                                  onUpdateItems(request.id, updated)
+                                }}
+                                className="text-danger-600 dark:text-danger-400 hover:text-danger-900 dark:hover:text-danger-300"
+                                title="Delete Item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -502,7 +642,7 @@ const RequestDetailsModal: React.FC<RequestDetailsModalProps> = ({ request, onCl
                     Reject
                   </button>
                   <button
-                    onClick={() => onUpdateStatus(request.id, 'approved', adminNotes)}
+                    onClick={() => onUpdateStatus(request.id, 'approved', adminNotes, editableItems)}
                     className="btn-success"
                   >
                     Approve
