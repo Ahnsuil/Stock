@@ -79,6 +79,19 @@ const StockManagement: React.FC = () => {
 
   const uniqueTypes = Array.from(new Set(safeItems.map(item => item.type))).sort()
 
+  // Check if an item is expiring within one month
+  const isNearExpiry = (item: StockItem): boolean => {
+    if (activeTab !== 'medical' || !item.expiry_date) return false
+    
+    const expiryDate = new Date(item.expiry_date)
+    const today = new Date()
+    const oneMonthFromNow = new Date()
+    oneMonthFromNow.setMonth(today.getMonth() + 1)
+    
+    // Check if expiry date is within the next month and not already expired
+    return expiryDate >= today && expiryDate <= oneMonthFromNow
+  }
+
   const handleAddItem = async (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null; stock_category?: StockCategory }) => {
     try {
       const isMedical = formData.stock_category === 'medical'
@@ -354,8 +367,13 @@ const StockManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+              {filteredItems.map((item) => {
+                const nearExpiry = isNearExpiry(item)
+                return (
+                <tr 
+                  key={item.id} 
+                  className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${nearExpiry ? 'animate-flash-red' : ''}`}
+                >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <Package className="h-5 w-5 text-gray-400 dark:text-gray-500 mr-3" />
@@ -374,8 +392,11 @@ const StockManagement: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
                         {item.batch_number || '—'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${nearExpiry ? 'font-bold text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
                         {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : '—'}
+                        {nearExpiry && (
+                          <span className="ml-2 text-xs">⚠️ Expiring Soon</span>
+                        )}
                       </td>
                     </>
                   )}
@@ -421,7 +442,8 @@ const StockManagement: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

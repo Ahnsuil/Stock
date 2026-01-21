@@ -73,3 +73,31 @@
     @apply badge bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200;
   }
 }
+
+@layer utilities {
+  @keyframes flash-red {
+    0%, 100% {
+      background-color: rgba(239, 68, 68, 0.1);
+    }
+    50% {
+      background-color: rgba(239, 68, 68, 0.3);
+    }
+  }
+  
+  .animate-flash-red {
+    animation: flash-red 1.5s ease-in-out infinite;
+  }
+  
+  .dark .animate-flash-red {
+    animation: flash-red-dark 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes flash-red-dark {
+    0%, 100% {
+      background-color: rgba(239, 68, 68, 0.2);
+    }
+    50% {
+      background-color: rgba(239, 68, 68, 0.4);
+    }
+  }
+}
