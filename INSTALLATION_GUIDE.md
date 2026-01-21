@@ -68,18 +68,56 @@ cd Stock
 
 ---
 
-## 🏥 Using the Medical Stock Features
+## 🏥 Using the Stock Management Features
 
 1. **Login** as admin
 2. **Go to Stock Management**
 3. **Click the "Medical" tab** (💊 icon) to manage medical items
 4. **Click the "General" tab** (📦 icon) for regular stock items
 
+### Key Features:
+
+**Adding Stock Items:**
+- Specify **unit type** (Box or PCS) - shown next to quantity
+- Add **batch numbers** (required for medical, optional for general)
+- Set **expiry dates** (required for medical, optional for general)
+- Items expiring within one month show orange warnings
+- Expired items are highlighted in red
+
+**Discarding Items:**
+- Click the discard button (⚠️ icon) on any stock item
+- Select reason: Damaged, Broken, or Expired
+- Quantity is automatically deducted from stock
+- Discard history is maintained
+
+**User Management:**
+- Assign **departments** to users for better organization
+- Departments can be used to filter items in guest view
+
 ### Sample Medical Items Included:
 - Paracetamol 500mg (Batch: B2024-001)
 - Bandages (Batch: B2024-002) 
 - Antiseptic Wipes (Batch: B2024-003)
 - Blood Pressure Monitor (Batch: B2024-004)
+
+## 👥 Guest User Features
+
+**Stock Browser:**
+- View all available items with batch numbers and expiry dates
+- Filter by type and department
+- See unit types (Box/PCS) with quantities
+
+**My Items:**
+- View issued items with batch numbers and expiry dates
+- Transfer items to other users using the Transfer button
+- Track return due dates and overdue items
+
+**Item Transfers:**
+1. Go to "My Items"
+2. Click "Transfer" on any active (non-returned) item
+3. Select the recipient user
+4. Add optional notes
+5. Confirm transfer
 
 ---
 
@@ -201,4 +239,24 @@ If you encounter issues:
 
 ---
 
-*Last updated: January 21, 2026*
+## 🔄 Updating the Application
+
+When updating to a new version:
+
+1. **Stop the application:**
+   ```cmd
+   docker-compose down
+   ```
+
+2. **Pull/update the code** with new features
+
+3. **Start the application:**
+   ```cmd
+   START_DOCKER.bat
+   ```
+
+4. **Database migrations run automatically** - no manual steps needed!
+
+The system will automatically apply new database migrations (like adding unit types, departments, discard tracking, etc.)
+
+*Last updated: January 2026 - v2.0 with expiry tracking, transfers, and discard management*

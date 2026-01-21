@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogo } from '../contexts/LogoContext'
-import { LogOut, Package, Users, ClipboardList, AlertTriangle, FileSpreadsheet, Building, Settings } from 'lucide-react'
+import { LogOut, Package, Users, ClipboardList, AlertTriangle, FileSpreadsheet, Building, Settings, AlertCircle } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import clsx from 'clsx'
 import ThemeToggle from './ThemeToggle'
@@ -29,6 +29,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Stock Items', href: '/stock', icon: Package },
     { name: 'Requests', href: '/requests', icon: ClipboardList },
     { name: 'Issued Items', href: '/issued', icon: AlertTriangle },
+    { name: 'Discarded Items', href: '/discarded', icon: AlertCircle },
     { name: 'Asset Register', href: '/assets', icon: Building },
     { name: 'Report', href: '/report', icon: FileSpreadsheet },
     { name: 'Users', href: '/users', icon: Users },

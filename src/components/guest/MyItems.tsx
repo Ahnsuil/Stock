@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
-import { Package, Calendar, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
+import { Package, Calendar, AlertTriangle, CheckCircle, Clock, ArrowRight } from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import toast from 'react-hot-toast'
 import { format, isAfter, differenceInDays } from 'date-fns'
@@ -20,6 +20,8 @@ interface IssuedItem {
   issued_to: string | null
   item_name?: string
   item_type?: string
+  batch_number?: string | null
+  expiry_date?: string | null
   is_overdue?: boolean
   days_overdue?: number
 }
@@ -29,10 +31,14 @@ const MyItems: React.FC = () => {
   const [issuedItems, setIssuedItems] = useState<IssuedItem[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedFilter, setSelectedFilter] = useState('all')
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferringItem, setTransferringItem] = useState<IssuedItem | null>(null)
+  const [users, setUsers] = useState<Array<{ id: string; name: string; department: string | null }>>([])
 
   useEffect(() => {
     if (profile) {
       fetchMyIssuedItems()
+      fetchUsers()
     }
   }, [profile])
 
@@ -44,7 +50,7 @@ const MyItems: React.FC = () => {
         .from('issued_items')
         .select(`
           *,
-          stock_items!inner(name, type)
+          stock_items!inner(name, type, batch_number, expiry_date)
         `)
         .eq('user_id', profile.id)
         .order('issued_date', { ascending: false })
@@ -59,6 +65,8 @@ const MyItems: React.FC = () => {
           ...item,
           item_name: item.stock_items.name,
           item_type: item.stock_items.type,
+          batch_number: item.stock_items.batch_number,
+          expiry_date: item.stock_items.expiry_date,
           is_overdue: isOverdue,
           days_overdue: daysOverdue
         }
@@ -70,6 +78,69 @@ const MyItems: React.FC = () => {
       toast.error('Failed to load your items')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, department')
+        .eq('role', 'guest')
+        .neq('id', profile?.id) // Exclude current user
+
+      if (error) throw error
+      setUsers(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
+
+  const handleTransferItem = async (issuedItemId: string, toUserId: string, notes: string) => {
+    if (!profile) return
+
+    try {
+      // Get the issued item
+      const { data: issuedItem, error: fetchError } = await supabase
+        .from('issued_items')
+        .select('*')
+        .eq('id', issuedItemId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      if (issuedItem.returned) {
+        toast.error('Cannot transfer returned items')
+        return
+      }
+
+      // Update the issued item to transfer to new user
+      const { error: updateError } = await supabase
+        .from('issued_items')
+        .update({ user_id: toUserId })
+        .eq('id', issuedItemId)
+
+      if (updateError) throw updateError
+
+      // Record the transfer
+      const { error: transferError } = await supabase
+        .from('item_transfers')
+        .insert({
+          issued_item_id: issuedItemId,
+          from_user_id: profile.id,
+          to_user_id: toUserId,
+          notes: notes || null
+        })
+
+      if (transferError) throw transferError
+
+      toast.success('Item transferred successfully')
+      fetchMyIssuedItems()
+      setShowTransferModal(false)
+      setTransferringItem(null)
+    } catch (error) {
+      console.error('Error transferring item:', error)
+      toast.error('Failed to transfer item')
     }
   }
 
@@ -282,6 +353,22 @@ const MyItems: React.FC = () => {
                   <span className="text-gray-900 font-medium">{item.issued_to}</span>
                 </div>
               )}
+              {(item.batch_number || item.expiry_date) && (
+                <>
+                  {item.batch_number && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Batch:</span>
+                      <span className="text-gray-900">{item.batch_number}</span>
+                    </div>
+                  )}
+                  {item.expiry_date && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Expiry:</span>
+                      <span className="text-gray-900">{format(new Date(item.expiry_date), 'MMM dd, yyyy')}</span>
+                    </div>
+                  )}
+                </>
+              )}
               {item.return_date && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Returned:</span>
@@ -298,8 +385,21 @@ const MyItems: React.FC = () => {
               </div>
             )}
             
-            <div className="mt-4">
+            <div className="mt-4 flex items-center justify-between">
               {getStatusBadge(item)}
+              {!item.returned && (
+                <button
+                  onClick={() => {
+                    setTransferringItem(item)
+                    setShowTransferModal(true)
+                  }}
+                  className="text-primary-600 hover:text-primary-800 text-sm flex items-center gap-1"
+                  title="Transfer to another user"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  Transfer
+                </button>
+              )}
             </div>
           </div>
         ))}
@@ -317,6 +417,106 @@ const MyItems: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && transferringItem && (
+        <TransferModal
+          item={transferringItem}
+          users={users}
+          onTransfer={handleTransferItem}
+          onClose={() => {
+            setShowTransferModal(false)
+            setTransferringItem(null)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Transfer Modal Component
+interface TransferModalProps {
+  item: IssuedItem
+  users: Array<{ id: string; name: string; department: string | null }>
+  onTransfer: (issuedItemId: string, toUserId: string, notes: string) => void
+  onClose: () => void
+}
+
+const TransferModal: React.FC<TransferModalProps> = ({ item, users, onTransfer, onClose }) => {
+  const [formData, setFormData] = useState({
+    toUserId: '',
+    notes: ''
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!formData.toUserId) {
+      toast.error('Please select a user to transfer to')
+      return
+    }
+    onTransfer(item.id, formData.toUserId, formData.notes)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div className="mt-3">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
+            Transfer Item
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Item</label>
+              <p className="mt-1 text-sm text-gray-900">{item.item_name} ({item.item_type})</p>
+              <p className="text-xs text-gray-500">Quantity: {item.quantity_issued}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Transfer To *</label>
+              <select
+                value={formData.toUserId}
+                onChange={(e) => setFormData({ ...formData, toUserId: e.target.value })}
+                className="input"
+                required
+              >
+                <option value="">Select a user</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} {user.department ? `(${user.department})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Notes</label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="input"
+                rows={3}
+                placeholder="Optional notes about the transfer"
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary"
+              >
+                Transfer Item
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

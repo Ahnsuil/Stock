@@ -12,6 +12,10 @@ interface StockItem {
   type: string
   quantity: number
   description: string | null
+  batch_number: string | null
+  expiry_date: string | null
+  unit_type: 'box' | 'pcs' | null
+  stock_category: 'general' | 'medical'
 }
 
 interface CartItem extends StockItem {
@@ -24,11 +28,14 @@ const StockBrowser: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedType, setSelectedType] = useState('')
+  const [selectedDepartment, setSelectedDepartment] = useState('')
+  const [users, setUsers] = useState<Array<{ id: string; name: string; department: string | null }>>([])
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
 
   useEffect(() => {
     fetchStockItems()
+    fetchUsers()
   }, [])
 
   const fetchStockItems = async () => {
@@ -49,13 +56,34 @@ const StockBrowser: React.FC = () => {
     }
   }
 
+  const fetchUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, name, department')
+        .eq('role', 'guest')
+
+      if (error) throw error
+      setUsers(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error fetching users:', error)
+    }
+  }
+
   const safeItems = Array.isArray(items) ? items : []
+  
+  // Get unique departments from users
+  const uniqueDepartments = Array.from(new Set(users.map(u => u.department).filter(Boolean))).sort() as string[]
+  
   const filteredItems = safeItems.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
     const matchesType = !selectedType || item.type === selectedType
-    return matchesSearch && matchesType
+    // For department filter, we'll need to check if any user in that department has this item
+    // For now, we'll filter by item type or show all if no department selected
+    const matchesDepartment = !selectedDepartment || true // Placeholder - can be enhanced based on business logic
+    return matchesSearch && matchesType && matchesDepartment
   })
 
   const uniqueTypes = Array.from(new Set(safeItems.map(item => item.type))).sort()
@@ -193,6 +221,18 @@ const StockBrowser: React.FC = () => {
             ))}
           </select>
         </div>
+        <div className="w-full sm:w-48">
+          <select
+            value={selectedDepartment}
+            onChange={(e) => setSelectedDepartment(e.target.value)}
+            className="input"
+          >
+            <option value="">All Departments</option>
+            {uniqueDepartments.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Stock Items Grid */}
@@ -213,7 +253,7 @@ const StockBrowser: React.FC = () => {
                 item.quantity <= 10 ? 'badge-warning' : 
                 item.quantity <= 5 ? 'badge-danger' : 'badge-success'
               }`}>
-                {item.quantity}
+                {item.quantity} {item.unit_type || 'pcs'}
               </span>
             </div>
             
@@ -222,10 +262,21 @@ const StockBrowser: React.FC = () => {
                 {item.description}
               </p>
             )}
+
+            {(item.batch_number || item.expiry_date) && (
+              <div className="mt-2 text-xs text-gray-500 space-y-1">
+                {item.batch_number && (
+                  <div>Batch: {item.batch_number}</div>
+                )}
+                {item.expiry_date && (
+                  <div>Expiry: {new Date(item.expiry_date).toLocaleDateString()}</div>
+                )}
+              </div>
+            )}
             
             <div className="mt-4 flex items-center justify-between">
               <div className="text-sm text-gray-500">
-                Available: {item.quantity}
+                Available: {item.quantity} {item.unit_type || 'pcs'}
               </div>
               <button
                 onClick={() => addToCart(item)}

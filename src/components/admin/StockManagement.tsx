@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Plus, Search, Package, Edit, Trash2, Upload, ArrowUp, Pill, Box } from 'lucide-react'
+import { Plus, Search, Package, Edit, Trash2, Upload, ArrowUp, Pill, Box, AlertCircle } from 'lucide-react'
 import LoadingSpinner from '../LoadingSpinner'
 import toast from 'react-hot-toast'
+import { useAuth } from '../../contexts/AuthContext'
 import type { StockCategory } from '../../lib/stockUtils'
 
 interface StockItem {
@@ -15,11 +16,13 @@ interface StockItem {
   stock_category: StockCategory
   expiry_date: string | null
   batch_number: string | null
+  unit_type: 'box' | 'pcs' | null
   created_at: string
   updated_at: string
 }
 
 const StockManagement: React.FC = () => {
+  const { profile } = useAuth()
   const [activeTab, setActiveTab] = useState<StockCategory>('general')
   const [items, setItems] = useState<StockItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,6 +32,8 @@ const StockManagement: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [showRestockModal, setShowRestockModal] = useState(false)
+  const [showDiscardModal, setShowDiscardModal] = useState(false)
+  const [discardingItem, setDiscardingItem] = useState<StockItem | null>(null)
   const [editingItem, setEditingItem] = useState<StockItem | null>(null)
   const [restockingItem, setRestockingItem] = useState<StockItem | null>(null)
 
@@ -79,9 +84,9 @@ const StockManagement: React.FC = () => {
 
   const uniqueTypes = Array.from(new Set(safeItems.map(item => item.type))).sort()
 
-  // Check if an item is expiring within one month
+  // Check if an item is expiring within one month (for both medical and general)
   const isNearExpiry = (item: StockItem): boolean => {
-    if (activeTab !== 'medical' || !item.expiry_date) return false
+    if (!item.expiry_date) return false
     
     const expiryDate = new Date(item.expiry_date)
     const today = new Date()
@@ -92,7 +97,15 @@ const StockManagement: React.FC = () => {
     return expiryDate >= today && expiryDate <= oneMonthFromNow
   }
 
-  const handleAddItem = async (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null; stock_category?: StockCategory }) => {
+  // Check if an item is expired
+  const isExpired = (item: StockItem): boolean => {
+    if (!item.expiry_date) return false
+    const expiryDate = new Date(item.expiry_date)
+    const today = new Date()
+    return expiryDate < today
+  }
+
+  const handleAddItem = async (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null; stock_category?: StockCategory; unit_type?: 'box' | 'pcs' | null }) => {
     try {
       const isMedical = formData.stock_category === 'medical'
       const dataToInsert: Record<string, unknown> = {
@@ -100,12 +113,12 @@ const StockManagement: React.FC = () => {
         type: formData.type,
         quantity: formData.quantity,
         description: formData.description && String(formData.description).trim() ? String(formData.description).trim() : null,
-        stock_category: isMedical ? 'medical' : 'general'
+        stock_category: isMedical ? 'medical' : 'general',
+        unit_type: formData.unit_type || 'pcs'
       }
-      if (isMedical) {
-        dataToInsert.batch_number = formData.batch_number?.trim() || null
-        dataToInsert.expiry_date = formData.expiry_date || null
-      }
+      // Allow expiry_date and batch_number for both general and medical
+      dataToInsert.batch_number = formData.batch_number?.trim() || null
+      dataToInsert.expiry_date = formData.expiry_date || null
       const { data, error } = await supabase
         .from('stock_items')
         .insert([dataToInsert])
@@ -130,7 +143,7 @@ const StockManagement: React.FC = () => {
     }
   }
 
-  const handleUpdateItem = async (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null }) => {
+  const handleUpdateItem = async (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null; unit_type?: 'box' | 'pcs' | null }) => {
     if (!editingItem) return
     try {
       const { stock_category: _, ...updatePayload } = formData as typeof formData & { stock_category?: StockCategory }
@@ -139,12 +152,12 @@ const StockManagement: React.FC = () => {
         type: updatePayload.type,
         quantity: updatePayload.quantity,
         description: updatePayload.description && String(updatePayload.description).trim() ? String(updatePayload.description).trim() : null,
-        purchase_vendor: updatePayload.purchase_vendor && String(updatePayload.purchase_vendor).trim() ? String(updatePayload.purchase_vendor).trim() : null
+        purchase_vendor: updatePayload.purchase_vendor && String(updatePayload.purchase_vendor).trim() ? String(updatePayload.purchase_vendor).trim() : null,
+        unit_type: (updatePayload as { unit_type?: 'box' | 'pcs' }).unit_type || 'pcs'
       }
-      if (editingItem.stock_category === 'medical') {
-        payload.batch_number = (updatePayload as { batch_number?: string }).batch_number?.trim() || null
-        payload.expiry_date = (updatePayload as { expiry_date?: string }).expiry_date || null
-      }
+      // Allow expiry_date and batch_number for both general and medical
+      payload.batch_number = (updatePayload as { batch_number?: string }).batch_number?.trim() || null
+      payload.expiry_date = (updatePayload as { expiry_date?: string }).expiry_date || null
       const { error } = await supabase
         .from('stock_items')
         .update(payload)
@@ -233,6 +246,57 @@ const StockManagement: React.FC = () => {
     } catch (error) {
       console.error('Error restocking item:', error)
       toast.error('Failed to restock item')
+    }
+  }
+
+  const handleDiscardItem = async (itemId: string, quantityToDiscard: number, reason: 'damaged' | 'broken' | 'expired', notes: string) => {
+    try {
+      // Get current item
+      const { data: currentItem, error: fetchError } = await supabase
+        .from('stock_items')
+        .select('quantity')
+        .eq('id', itemId)
+        .single()
+
+      if (fetchError) throw fetchError
+
+      if (currentItem.quantity < quantityToDiscard) {
+        toast.error('Cannot discard more than available quantity')
+        return
+      }
+
+      // Update stock quantity
+      const newQuantity = currentItem.quantity - quantityToDiscard
+      const { error: updateError } = await supabase
+        .from('stock_items')
+        .update({ 
+          quantity: newQuantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', itemId)
+
+      if (updateError) throw updateError
+
+      // Record the discard
+      const { error: discardError } = await supabase
+        .from('discarded_items')
+        .insert({
+          item_id: itemId,
+          quantity_discarded: quantityToDiscard,
+          reason: reason,
+          discarded_by: profile?.id || null,
+          notes: notes || null
+        })
+
+      if (discardError) throw discardError
+
+      toast.success(`Successfully discarded ${quantityToDiscard} units`)
+      fetchStockItems()
+      setShowDiscardModal(false)
+      setDiscardingItem(null)
+    } catch (error) {
+      console.error('Error discarding item:', error)
+      toast.error('Failed to discard item')
     }
   }
 
@@ -345,16 +409,12 @@ const StockManagement: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Type
                 </th>
-                {activeTab === 'medical' && (
-                  <>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Batch
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Expiry
-                    </th>
-                  </>
-                )}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Batch
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Expiry
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Quantity
                 </th>
@@ -369,10 +429,11 @@ const StockManagement: React.FC = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {filteredItems.map((item) => {
                 const nearExpiry = isNearExpiry(item)
+                const expired = isExpired(item)
                 return (
                 <tr 
                   key={item.id} 
-                  className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${nearExpiry ? 'animate-flash-red' : ''}`}
+                  className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${nearExpiry || expired ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -387,25 +448,24 @@ const StockManagement: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="badge-primary">{item.type}</span>
                   </td>
-                  {activeTab === 'medical' && (
-                    <>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                        {item.batch_number || '—'}
-                      </td>
-                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${nearExpiry ? 'font-bold text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100'}`}>
-                        {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : '—'}
-                        {nearExpiry && (
-                          <span className="ml-2 text-xs">⚠️ Expiring Soon</span>
-                        )}
-                      </td>
-                    </>
-                  )}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                    {item.batch_number || '—'}
+                  </td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${expired ? 'font-bold text-red-600 dark:text-red-400' : nearExpiry ? 'font-bold text-orange-600 dark:text-orange-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                    {item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : '—'}
+                    {expired && (
+                      <span className="ml-2 text-xs">⚠️ Expired</span>
+                    )}
+                    {nearExpiry && !expired && (
+                      <span className="ml-2 text-xs">⚠️ Expiring Soon</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`badge ${
                       item.quantity <= 10 ? 'badge-warning' :
                       item.quantity <= 5 ? 'badge-danger' : 'badge-success'
                     }`}>
-                      {item.quantity}
+                      {item.quantity} {item.unit_type || 'pcs'}
                     </span>
                   </td>
                   <td className="px-6 py-4">
@@ -424,6 +484,16 @@ const StockManagement: React.FC = () => {
                         title="Restock Item"
                       >
                         <ArrowUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDiscardingItem(item)
+                          setShowDiscardModal(true)
+                        }}
+                        className="text-orange-600 dark:text-orange-400 hover:text-orange-900 dark:hover:text-orange-300"
+                        title="Discard Item"
+                      >
+                        <AlertCircle className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => setEditingItem(item)}
@@ -499,6 +569,18 @@ const StockManagement: React.FC = () => {
           }}
         />
       )}
+
+      {/* Discard Modal */}
+      {showDiscardModal && discardingItem && (
+        <DiscardModal
+          item={discardingItem}
+          onDiscard={handleDiscardItem}
+          onClose={() => {
+            setShowDiscardModal(false)
+            setDiscardingItem(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -507,7 +589,7 @@ const StockManagement: React.FC = () => {
 interface StockItemModalProps {
   item?: StockItem | null
   category?: StockCategory
-  onSave: (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null; stock_category?: StockCategory }) => void
+  onSave: (formData: Omit<StockItem, 'id' | 'created_at' | 'updated_at'> & { batch_number?: string | null; expiry_date?: string | null; stock_category?: StockCategory; unit_type?: 'box' | 'pcs' | null }) => void
   onClose: () => void
 }
 
@@ -520,7 +602,8 @@ const StockItemModal: React.FC<StockItemModalProps> = ({ item, category, onSave,
     description: item?.description || '',
     purchase_vendor: item?.purchase_vendor || '',
     batch_number: item?.batch_number || '',
-    expiry_date: item?.expiry_date ? String(item.expiry_date).slice(0, 10) : ''
+    expiry_date: item?.expiry_date ? String(item.expiry_date).slice(0, 10) : '',
+    unit_type: (item?.unit_type as 'box' | 'pcs') || 'pcs'
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -528,12 +611,14 @@ const StockItemModal: React.FC<StockItemModalProps> = ({ item, category, onSave,
     const dataToSave: Record<string, unknown> = {
       ...formData,
       description: formData.description?.trim() || null,
-      purchase_vendor: formData.purchase_vendor?.trim() || null
+      purchase_vendor: formData.purchase_vendor?.trim() || null,
+      unit_type: formData.unit_type
     }
-    if (isMedical) {
-      dataToSave.batch_number = formData.batch_number?.trim() || null
-      dataToSave.expiry_date = formData.expiry_date || null
-      if (!item) dataToSave.stock_category = 'medical'
+    // Allow batch_number and expiry_date for both general and medical
+    dataToSave.batch_number = formData.batch_number?.trim() || null
+    dataToSave.expiry_date = formData.expiry_date || null
+    if (isMedical && !item) {
+      dataToSave.stock_category = 'medical'
     }
     onSave(dataToSave as Parameters<typeof onSave>[0])
   }
@@ -568,31 +653,38 @@ const StockItemModal: React.FC<StockItemModalProps> = ({ item, category, onSave,
                 placeholder={isMedical ? 'e.g., Medication, First Aid' : 'e.g., Electronics, Stationery, Tools'}
               />
             </div>
-            {isMedical && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Batch number *</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.batch_number}
-                    onChange={(e) => setFormData({ ...formData, batch_number: e.target.value })}
-                    className="input"
-                    placeholder="e.g., B2024-001"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.expiry_date}
-                    onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
-                    className="input"
-                  />
-                </div>
-              </>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Unit Type</label>
+              <select
+                value={formData.unit_type}
+                onChange={(e) => setFormData({ ...formData, unit_type: e.target.value as 'box' | 'pcs' })}
+                className="input"
+              >
+                <option value="pcs">Pieces (pcs)</option>
+                <option value="box">Box</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Batch number {isMedical ? '*' : ''}</label>
+              <input
+                type="text"
+                required={isMedical}
+                value={formData.batch_number}
+                onChange={(e) => setFormData({ ...formData, batch_number: e.target.value })}
+                className="input"
+                placeholder="e.g., B2024-001"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry date {isMedical ? '*' : ''}</label>
+              <input
+                type="date"
+                required={isMedical}
+                value={formData.expiry_date}
+                onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                className="input"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Purchase Vendor</label>
               <input
@@ -668,7 +760,7 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({ category, onClose, 
       const items = lines.map(line => {
         const parts = line.split(',').map(s => s.trim())
         if (isMedical) {
-          const [name, type, quantity, description, purchase_vendor, batch_number, expiry_date] = parts
+          const [name, type, quantity, description, purchase_vendor, batch_number, expiry_date, unit_type] = parts
           return {
             name,
             type,
@@ -677,17 +769,21 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({ category, onClose, 
             purchase_vendor: purchase_vendor || null,
             stock_category: 'medical' as const,
             batch_number: batch_number || null,
-            expiry_date: expiry_date || null
+            expiry_date: expiry_date || null,
+            unit_type: (unit_type === 'box' ? 'box' : 'pcs') as 'box' | 'pcs'
           }
         }
-        const [name, type, quantity, description, purchase_vendor] = parts
+        const [name, type, quantity, description, purchase_vendor, batch_number, expiry_date, unit_type] = parts
         return {
           name,
           type,
           quantity: parseInt(quantity) || 0,
           description: description || null,
           purchase_vendor: purchase_vendor || null,
-          stock_category: 'general' as const
+          stock_category: 'general' as const,
+          batch_number: batch_number || null,
+          expiry_date: expiry_date || null,
+          unit_type: (unit_type === 'box' ? 'box' : 'pcs') as 'box' | 'pcs'
         }
       }).filter(it => it.name && it.type && (!isMedical || (it.batch_number && it.expiry_date)))
 
@@ -723,8 +819,8 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({ category, onClose, 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 {isMedical
-                  ? 'Items (one per line: Name, Type, Quantity, Description, Purchase Vendor, Batch Number, Expiry YYYY-MM-DD)'
-                  : 'Items (one per line: Name, Type, Quantity, Description, Purchase Vendor)'}
+                  ? 'Items (one per line: Name, Type, Quantity, Description, Purchase Vendor, Batch Number, Expiry YYYY-MM-DD, Unit Type [box/pcs])'
+                  : 'Items (one per line: Name, Type, Quantity, Description, Purchase Vendor, Batch Number (optional), Expiry YYYY-MM-DD (optional), Unit Type [box/pcs] (optional))'}
               </label>
               <textarea
                 value={batchData}
@@ -732,8 +828,8 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({ category, onClose, 
                 className="input"
                 rows={8}
                 placeholder={isMedical
-                  ? 'Paracetamol, Medication, 100, 500mg tablets, PharmaCo, B2024-001, 2025-12-31\nBandages, First Aid, 50, Elastic bandages, MedSupply, B2024-002, 2026-06-30'
-                  : 'USB Drive, Electronics, 50, High-speed USB drives, TechStore Inc.\nNotebooks, Stationery, 100, A5 spiral notebooks, Office Supplies Co.\nScrewdrivers, Tools, 25, Multi-bit screwdriver set, Hardware Solutions'}
+                  ? 'Paracetamol, Medication, 100, 500mg tablets, PharmaCo, B2024-001, 2025-12-31, pcs\nBandages, First Aid, 50, Elastic bandages, MedSupply, B2024-002, 2026-06-30, box'
+                  : 'USB Drive, Electronics, 50, High-speed USB drives, TechStore Inc., B2024-001, 2026-12-31, pcs\nNotebooks, Stationery, 100, A5 spiral notebooks, Office Supplies Co., , , box\nScrewdrivers, Tools, 25, Multi-bit screwdriver set, Hardware Solutions, , , pcs'}
               />
             </div>
             <div className="flex justify-end space-x-3 pt-4">
@@ -753,6 +849,104 @@ const BatchUploadModal: React.FC<BatchUploadModalProps> = ({ category, onClose, 
                   <LoadingSpinner size="small" className="text-white mr-2" />
                 ) : null}
                 Upload Items
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Discard Modal Component
+interface DiscardModalProps {
+  item: StockItem
+  onDiscard: (itemId: string, quantityToDiscard: number, reason: 'damaged' | 'broken' | 'expired', notes: string) => void
+  onClose: () => void
+}
+
+const DiscardModal: React.FC<DiscardModalProps> = ({ item, onDiscard, onClose }) => {
+  const [formData, setFormData] = useState({
+    quantityToDiscard: '',
+    reason: 'damaged' as 'damaged' | 'broken' | 'expired',
+    notes: ''
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const quantity = parseInt(formData.quantityToDiscard)
+    if (quantity > 0 && quantity <= item.quantity) {
+      onDiscard(item.id, quantity, formData.reason, formData.notes)
+    } else {
+      toast.error('Invalid quantity')
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+        <div className="mt-3">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            Discard Item
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Item</label>
+              <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{item.name} ({item.type})</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Current quantity: {item.quantity} {item.unit_type || 'pcs'}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Quantity to Discard *</label>
+              <input
+                type="number"
+                required
+                min="1"
+                max={item.quantity}
+                value={formData.quantityToDiscard}
+                onChange={(e) => setFormData({ ...formData, quantityToDiscard: e.target.value })}
+                className="input"
+                placeholder="Enter quantity to discard"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Reason *</label>
+              <select
+                value={formData.reason}
+                onChange={(e) => setFormData({ ...formData, reason: e.target.value as 'damaged' | 'broken' | 'expired' })}
+                className="input"
+              >
+                <option value="damaged">Damaged</option>
+                <option value="broken">Broken</option>
+                <option value="expired">Expired</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                className="input"
+                rows={3}
+                placeholder="Optional notes about the discard"
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn-primary bg-orange-600 hover:bg-orange-700"
+              >
+                Discard Item
               </button>
             </div>
           </form>

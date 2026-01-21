@@ -10,6 +10,7 @@ interface User {
   name: string
   email: string
   role: 'admin' | 'guest'
+  department: string | null
   created_at: string
   updated_at: string
 }
@@ -251,6 +252,9 @@ const UserManagement: React.FC = () => {
                   Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Department
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Created
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -282,6 +286,9 @@ const UserManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getRoleBadge(user.role)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    {user.department || '—'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {format(new Date(user.created_at), 'MMM dd, yyyy')}
@@ -351,6 +358,7 @@ const UserModal: React.FC<UserModalProps> = ({ user, onSave, onClose }) => {
     name: user?.name || '',
     email: user?.email || '',
     role: user?.role || 'guest' as 'admin' | 'guest',
+    department: user?.department || '',
     password: ''
   })
 
@@ -411,6 +419,16 @@ const UserModal: React.FC<UserModalProps> = ({ user, onSave, onClose }) => {
                 <option value="guest">Guest</option>
                 <option value="admin">Admin</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Department</label>
+              <input
+                type="text"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                className="input"
+                placeholder="e.g., IT, HR, Finance, Operations"
+              />
             </div>
             {!user && (
               <div>

@@ -1,7 +1,7 @@
 {
   "name": "stockflow",
-  "version": "1.0.0",
-  "description": "Stock Management Web Application",
+  "version": "2.0.0",
+  "description": "Stock Management Web Application with advanced expiry tracking, transfers, and discard management",
   "private": true,
   "type": "module",
   "scripts": {
