@@ -1,0 +1,22 @@
+# Frontend only — for use with HOSTED Supabase (built-in fallback).
+# No .env or local Supabase needed. Ideal for running on another PC.
+#
+# Run:  docker-compose -f docker-compose.standalone-frontend.yml up -d --build
+# Or:   npm run docker:standalone:up
+# Stop: docker-compose -f docker-compose.standalone-frontend.yml stop
+# Or:   npm run docker:standalone:stop
+#
+# App: http://localhost:5173
+
+version: '3.8'
+
+services:
+  frontend:
+    container_name: stockflow-frontend
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # No VITE_* args — app uses built-in hosted Supabase URL
+    ports:
+      - "5173:80"
+    restart: unless-stopped

@@ -1,0 +1,35 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: postgrest
+    url: http://supabase-rest:3000
+    routes:
+      - name: postgrest-v1
+        strip_path: true
+        paths:
+          - /rest/v1
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Language
+            - Content-Language
+            - Content-Type
+            - Authorization
+            - apikey
+            - Prefer
+          exposed_headers:
+            - Content-Range
+            - Range
+          credentials: true
+          max_age: 3600

@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+  }
+  
+  .btn-primary {
+    @apply btn bg-blue-600 dark:bg-blue-600 text-white border-blue-600 dark:border-blue-600 hover:bg-blue-700 dark:hover:bg-blue-700 focus:ring-blue-500;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 focus:ring-gray-500;
+  }
+  
+  .btn-success {
+    @apply btn bg-green-600 text-white border-green-600 hover:bg-green-700 focus:ring-green-500;
+  }
+  
+  .btn-danger {
+    @apply btn bg-red-600 text-white border-red-600 hover:bg-red-700 focus:ring-red-500;
+  }
+  
+  .btn-warning {
+    @apply btn bg-yellow-600 text-white border-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500;
+  }
+  
+  .input {
+    @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-blue-500 focus:border-blue-500;
+  }
+  
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 text-gray-900 dark:text-gray-100;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply badge bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200;
+  }
+  
+  .badge-warning {
+    @apply badge bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200;
+  }
+  
+  .badge-danger {
+    @apply badge bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200;
+  }
+  
+  .badge-primary {
+    @apply badge bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200;
+  }
+  
+  .badge-info {
+    @apply badge bg-cyan-100 dark:bg-cyan-900 text-cyan-800 dark:text-cyan-200;
+  }
+  
+  .badge-gray {
+    @apply badge bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200;
+  }
+}
