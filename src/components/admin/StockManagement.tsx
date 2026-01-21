@@ -5,6 +5,7 @@ import LoadingSpinner from '../LoadingSpinner'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../contexts/AuthContext'
 import type { StockCategory } from '../../lib/stockUtils'
+import DiscardedItems from './DiscardedItems'
 
 interface StockItem {
   id: string
@@ -23,7 +24,7 @@ interface StockItem {
 
 const StockManagement: React.FC = () => {
   const { profile } = useAuth()
-  const [activeTab, setActiveTab] = useState<StockCategory>('general')
+  const [activeTab, setActiveTab] = useState<StockCategory | 'discarded'>('general')
   const [items, setItems] = useState<StockItem[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -38,14 +39,18 @@ const StockManagement: React.FC = () => {
   const [restockingItem, setRestockingItem] = useState<StockItem | null>(null)
 
   useEffect(() => {
-    fetchStockItems()
+    if (activeTab !== 'discarded') {
+      fetchStockItems()
+    }
   }, [activeTab])
 
   const fetchStockItems = async () => {
+    if (activeTab === 'discarded') return
+    
     setLoading(true)
     try {
       let q = supabase.from('stock_items').select('*').order('created_at', { ascending: false })
-      q = q.eq('stock_category', activeTab)
+      q = q.eq('stock_category', activeTab as StockCategory)
       const { data, error } = await q
 
       if (error) {
@@ -57,7 +62,7 @@ const StockManagement: React.FC = () => {
             .order('created_at', { ascending: false })
           if (fallbackError) throw fallbackError
           const all = Array.isArray(allData) ? allData : []
-          setItems(all.filter((r: { stock_category?: string }) => (r.stock_category || 'general') === activeTab))
+          setItems(all.filter((r: { stock_category?: string }) => (r.stock_category || 'general') === activeTab as StockCategory))
         } else {
           throw error
         }
@@ -311,7 +316,7 @@ const StockManagement: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {/* General / Medical tabs - always visible in header */}
+          {/* General / Medical / Discarded tabs - always visible in header */}
           <div className="inline-flex p-1 bg-gray-200 dark:bg-gray-700 rounded-lg">
             <button
               onClick={() => setActiveTab('general')}
@@ -335,25 +340,45 @@ const StockManagement: React.FC = () => {
               <Pill className="h-4 w-4" />
               Medical
             </button>
+            <button
+              onClick={() => setActiveTab('discarded')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium ${
+                activeTab === 'discarded'
+                  ? 'bg-white dark:bg-gray-600 text-orange-600 dark:text-orange-400 shadow'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <AlertCircle className="h-4 w-4" />
+              Discarded
+            </button>
           </div>
-          <button
-            onClick={() => setShowBatchModal(true)}
-            className="btn-secondary"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Batch Upload
-          </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="btn-primary"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </button>
+          {activeTab !== 'discarded' && (
+            <>
+              <button
+                onClick={() => setShowBatchModal(true)}
+                className="btn-secondary"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Batch Upload
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="btn-primary"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Render Discarded Items component when discarded tab is active */}
+      {activeTab === 'discarded' ? (
+        <DiscardedItems />
+      ) : (
+        <>
+          {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1">
           <div className="relative">
@@ -580,6 +605,8 @@ const StockManagement: React.FC = () => {
             setDiscardingItem(null)
           }}
         />
+      )}
+        </>
       )}
     </div>
   )

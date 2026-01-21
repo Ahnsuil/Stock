@@ -27,7 +27,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const adminNavItems = [
     { name: 'Dashboard', href: '/', icon: Package },
     { name: 'Stock Items', href: '/stock', icon: Package },
-    { name: 'Discarded Items', href: '/discarded', icon: AlertCircle },
     { name: 'Requests', href: '/requests', icon: ClipboardList },
     { name: 'Issued Items', href: '/issued', icon: AlertTriangle },
     { name: 'Asset Register', href: '/assets', icon: Building },

@@ -11,7 +11,6 @@ import AssetRegister from '../components/admin/AssetRegister'
 import UserManagement from '../components/admin/UserManagement'
 import ReportGenerator from '../components/admin/ReportGenerator'
 import SiteSettings from '../components/admin/SiteSettings'
-import DiscardedItems from '../components/admin/DiscardedItems'
 
 interface DashboardStats {
   totalItems: number
@@ -531,7 +530,6 @@ const AdminDashboard: React.FC = () => {
         <Route path="/assets" element={<AssetRegister />} />
         <Route path="/report" element={<ReportGenerator />} />
         <Route path="/users" element={<UserManagement />} />
-        <Route path="/discarded" element={<DiscardedItems />} />
         <Route path="/site-settings" element={<SiteSettings />} />
       </Routes>
     </Layout>
