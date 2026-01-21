@@ -7,6 +7,14 @@ import clsx from 'clsx'
 import ThemeToggle from './ThemeToggle'
 import logoImage from '../logo.png'
 
+const DefaultLogo = () => (
+  <div className="h-8 flex items-center">
+    <span className="text-2xl font-bold text-blue-600 dark:text-blue-400 tracking-wider">
+      ANIL
+    </span>
+  </div>
+)
+
 interface LayoutProps {
   children: ReactNode
 }
@@ -43,7 +51,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="flex justify-between h-16">
             <div className="flex min-w-0 flex-1">
               <div className="flex-shrink-0 flex items-center">
-                <img src={customLogoUrl || logoImage} alt="Logo" className="h-8 w-auto" />
+                {customLogoUrl ? (
+                  <img src={customLogoUrl} alt="Custom Logo" className="h-8 w-auto" />
+                ) : (
+                  <DefaultLogo />
+                )}
                 <span className="ml-2 text-xl font-bold text-gray-900 dark:text-white">
                   Stock Management
                 </span>

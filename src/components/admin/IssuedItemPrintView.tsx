@@ -2,6 +2,14 @@ import React from 'react'
 import { format } from 'date-fns'
 import logoImage from '../../logo.png'
 
+const DefaultPrintLogo = () => (
+  <div className="h-12 flex items-center mr-4">
+    <span className="text-3xl font-bold text-blue-600 tracking-wider">
+      ANIL
+    </span>
+  </div>
+)
+
 interface IssuedItem {
   id: string
   item_id: string
@@ -107,7 +115,7 @@ const IssuedItemPrintView: React.FC<IssuedItemPrintViewProps> = ({ item }) => {
         <div className="print-header">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
-              <img src={logoImage} alt="Company Logo" className="h-12 w-auto mr-4" />
+              <DefaultPrintLogo />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Stock Management System</h1>
                 <p className="text-sm text-gray-600">Issued Item Details</p>

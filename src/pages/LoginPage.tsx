@@ -6,6 +6,14 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import ThemeToggle from '../components/ThemeToggle'
 import logoImage from '../logo.png'
 
+const DefaultLogo = () => (
+  <div className="h-16 flex items-center justify-center">
+    <span className="text-4xl font-bold text-blue-600 dark:text-blue-400 tracking-wider">
+      ANIL
+    </span>
+  </div>
+)
+
 const LoginPage: React.FC = () => {
   const { signIn } = useAuth()
   const { customLogoUrl } = useLogo()
@@ -34,7 +42,11 @@ const LoginPage: React.FC = () => {
         </div>
         <div>
           <div className="flex justify-center">
-            <img src={customLogoUrl || logoImage} alt="Logo" className="h-16 w-auto" />
+            {customLogoUrl ? (
+              <img src={customLogoUrl} alt="Custom Logo" className="h-16 w-auto" />
+            ) : (
+              <DefaultLogo />
+            )}
           </div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
             Sign in to Stock Management
