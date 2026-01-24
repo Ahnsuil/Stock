@@ -15,13 +15,23 @@ Create a `.env` file in the root directory with the following content:
 
 ```env
 # Supabase Local Configuration
-SUPABASE_URL=http://localhost:3000
+SUPABASE_URL=http://localhost:3001
 SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
 SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
-# Database Configuration
+# Database Configuration  
 POSTGRES_PASSWORD=your-super-secret-and-long-postgres-password
 JWT_SECRET=your-super-secret-jwt-token-with-at-least-32-characters-long
+
+# Auth Configuration
+API_EXTERNAL_URL=http://localhost:3001
+
+# Realtime Configuration  
+SECRET_KEY_BASE=your-super-secret-realtime-key-with-at-least-64-characters-long-for-phoenix
+
+# Frontend Environment Variables
+VITE_SUPABASE_URL=http://localhost:3001
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
 ```
 
 ### 2. Create Vite Environment File
@@ -29,7 +39,7 @@ JWT_SECRET=your-super-secret-jwt-token-with-at-least-32-characters-long
 Create a `.env.local` file in the root directory for your Vite application:
 
 ```env
-VITE_SUPABASE_URL=http://localhost:3000
+VITE_SUPABASE_URL=http://localhost:3001
 VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
 ```
 
@@ -43,17 +53,17 @@ docker-compose up -d
 
 This will start the following services:
 - **PostgreSQL Database** on port `54322`
-- **PostgREST API** on port `3000`
+- **PostgREST API** on port `3001` (via proxy)
 - **GoTrue Auth** on port `9999`
 - **Storage API** on port `5000`
 - **Realtime** on port `4000`
 - **Postgres Meta** on port `8080`
-- **Supabase Studio** on port `3001` (Web UI)
+- **Supabase Studio** on port `3003` (Web UI)
 
 ### 4. Access Supabase Studio
 
 Once the services are running, you can access Supabase Studio (the web UI) at:
-- **URL**: http://localhost:3001
+- **URL**: http://localhost:3003
 
 This provides a visual interface to manage your database, view tables, run queries, and more.
 
@@ -136,5 +146,5 @@ The local Supabase instance uses these default keys (safe for local development)
 ## Switching Between Local and Remote
 
 To switch between local and remote Supabase, simply update the environment variables in `.env.local`:
-- **Local**: `VITE_SUPABASE_URL=http://localhost:3000`
+- **Local**: `VITE_SUPABASE_URL=http://localhost:3001`
 - **Remote**: `VITE_SUPABASE_URL=https://your-project.supabase.co`
