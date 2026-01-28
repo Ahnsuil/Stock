@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   supabase-db:
     container_name: supabase-db
@@ -54,6 +52,7 @@ services:
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
       GOTRUE_MAILER_AUTOCONFIRM: "true"
+      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
     restart: unless-stopped
 
   supabase-rest:
@@ -133,6 +132,7 @@ services:
       FLY_APP_NAME: realtime
       SECURE_CHANNELS: "true"
       JWT_SECRET: ${JWT_SECRET}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
     restart: unless-stopped
 
   supabase-meta:
