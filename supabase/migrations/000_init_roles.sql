@@ -1,7 +1,7 @@
 -- Initialize database roles and extensions
--- This runs before other migrations
+-- This runs after 00_init_users.sh which creates the users with correct passwords
 
--- Create necessary roles
+-- Create necessary roles (users are created by init script)
 DO $$
 BEGIN
     -- Create anon role if it doesn't exist
@@ -17,11 +17,6 @@ BEGIN
     -- Create service_role if it doesn't exist
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'service_role') THEN
         CREATE ROLE service_role NOLOGIN NOINHERIT BYPASSRLS;
-    END IF;
-
-    -- Create authenticator role if it doesn't exist
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'authenticator') THEN
-        CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'your-super-secret-and-long-postgres-password';
     END IF;
 END
 $$;
