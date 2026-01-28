@@ -60,3 +60,6 @@ backup.sql
 # Local development files
 .dev/
 .local/
+
+# Deployment export folders (ZIP/package artifacts)
+Stock-Deployment-*/

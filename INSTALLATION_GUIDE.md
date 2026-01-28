@@ -159,6 +159,23 @@ ports:
    ```
 3. Check Docker Desktop for error messages
 
+### Problem: `502 Bad Gateway` on `http://localhost:3001/rest/v1/...` (login fails)
+This means the **nginx proxy (`supabase-proxy`) is running**, but the **REST API container (`supabase-rest`) is not** (usually it’s restarting/crashing).
+
+**Fix:**
+1. Run:
+   ```cmd
+   docker compose ps
+   docker logs --tail 200 supabase-rest
+   ```
+2. If you see URI/connection errors and your `POSTGRES_PASSWORD` contains special characters like `@ : / & ? #`,
+   change it to a **simple alphanumeric password** (recommended) and restart fresh:
+   ```cmd
+   docker compose down -v
+   docker compose up -d --build
+   ```
+   (The `-v` resets the database volume on new installs.)
+
 ### Problem: Can't login
 **Solution:** Use the default credentials:
 - Username: `admin`
